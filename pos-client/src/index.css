@@ -1,0 +1,281 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide number input spinners globally */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+
+:root {
+  --primary: #2563EB;
+  --success: #16A34A;
+  --warning: #F59E0B;
+  --danger:  #DC2626;
+}
+
+body {
+  font-family: 'Noto Sans Sinhala', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  font-size: 17px;
+  font-weight: 500;
+  background: #F1F5F9;
+  color: #0F172A;
+  margin: 0;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+input, select, textarea {
+  font-family: inherit;
+}
+
+@keyframes route-progress {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(-10%); }
+  100% { transform: translateX(0%); }
+}
+.animate-route-progress {
+  animation: route-progress 1.2s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.slide-up { animation: slideUp 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-7px); }
+  30%       { transform: translateX(7px); }
+  45%       { transform: translateX(-5px); }
+  60%       { transform: translateX(5px); }
+  75%       { transform: translateX(-3px); }
+  90%       { transform: translateX(3px); }
+}
+.shake { animation: shake 0.45s ease-in-out; }
+
+/* ─── Print styles ────────────────────────────────────────────────────────── */
+@media print {
+  @page { size: A4 portrait; margin: 14mm 12mm 14mm 12mm; }
+
+  /* ── Base reset ── */
+  body {
+    background: #fff !important;
+    font-size: 12px !important;
+    font-family: 'Outfit', sans-serif !important;
+    color: #000 !important;
+  }
+
+  /* Force ALL text to black — strip every color class */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-shadow: none !important;
+    color: #000 !important;
+    background-color: transparent !important;
+    border-color: #ccc !important;
+  }
+
+  /* ── Layout — break fixed heights and overflow clipping ── */
+  #root, #root > *, main, [class*="overflow-hidden"], [class*="overflow-auto"],
+  [class*="overflow-y"], [class*="h-screen"], [class*="max-h"] {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  #root > * > .flex.h-screen { display: block !important; }
+
+  /* ── Collapse all grids and flex rows to single column ── */
+  .grid { display: block !important; }
+  .grid > * { width: 100% !important; margin-bottom: 8px; }
+  [class*="space-y"] > * { margin-top: 8px !important; }
+
+  /* ── Hide UI chrome ── */
+  .print\:hidden, .no-print { display: none !important; }
+
+  /* ── Show print-only elements ── */
+  .print-only { display: block !important; }
+
+  /* ── Strip card decorations ── */
+  [class*="rounded"] {
+    background: #fff !important;
+    border-color: #ccc !important;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 12px !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Dark header */
+  thead, thead tr {
+    background: #1e3a5f !important;
+    background-color: #1e3a5f !important;
+  }
+  thead th {
+    color: #fff !important;
+    background: #1e3a5f !important;
+    background-color: #1e3a5f !important;
+    padding: 7px 10px !important;
+    text-align: left;
+    font-weight: 700;
+    font-size: 11px !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid #2a4a7f !important;
+    white-space: nowrap;
+  }
+
+  /* Body cells */
+  tbody td {
+    padding: 6px 10px !important;
+    border: 1px solid #ccc !important;
+    color: #000 !important;
+    background: transparent !important;
+    font-size: 12px !important;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  /* Alternating rows */
+  tbody tr:nth-child(even) td {
+    background: #f5f5f5 !important;
+    background-color: #f5f5f5 !important;
+  }
+
+  /* Footer / total row */
+  tfoot td {
+    padding: 7px 10px !important;
+    border: 1px solid #999 !important;
+    font-weight: 700 !important;
+    color: #000 !important;
+    background: #e8e8e8 !important;
+    background-color: #e8e8e8 !important;
+    font-size: 12px !important;
+  }
+
+  /* Group header rows (Trial Balance type rows) */
+  tr.print-group-header td {
+    background: #dde4f0 !important;
+    background-color: #dde4f0 !important;
+    font-weight: 700 !important;
+    color: #000 !important;
+    font-size: 11px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 5px 10px !important;
+    border: 1px solid #bbb !important;
+  }
+
+  /* Always show sale items sub-rows in print */
+  .sale-items-row { display: table-row !important; }
+  .sale-items-row td { border-top: none !important; padding-left: 20px !important; }
+
+  /* Don't break inside a row */
+  tr { page-break-inside: avoid; }
+  thead { display: table-header-group; }
+
+  /* Mono ref numbers — keep them compact */
+  .font-mono { font-size: 10px !important; letter-spacing: 0; }
+}
+
+/* ─── Dark mode overrides ──────────────────────────────────────────────────── */
+.dark body                    { background: #1c1c1c; color: #f0f0f0; }
+
+/* Surfaces */
+.dark .bg-white               { background-color: #141414 !important; }
+.dark .bg-slate-50            { background-color: #1a1a1a !important; }
+.dark .bg-slate-100           { background-color: #252525 !important; }
+.dark .bg-slate-200           { background-color: #2a2a2a !important; }
+
+/* Hover surfaces */
+.dark .hover\:bg-slate-50:hover  { background-color: #1e1e1e !important; }
+.dark .hover\:bg-slate-100:hover { background-color: #252525 !important; }
+.dark .hover\:bg-blue-50:hover   { background-color: #1e2535 !important; }
+
+/* Table odd/even row stripes */
+.dark .odd\:bg-white:nth-child(odd)     { background-color: #141414 !important; }
+.dark .even\:bg-white:nth-child(even)   { background-color: #141414 !important; }
+.dark .odd\:bg-slate-50:nth-child(odd)  { background-color: #1a1a1a !important; }
+.dark .even\:bg-slate-50:nth-child(even){ background-color: #1a1a1a !important; }
+
+/* Divide / table separators */
+.dark .divide-slate-50 > * + *  { border-color: #333333; }
+.dark .divide-slate-100 > * + * { border-color: #333333; }
+
+/* Borders — more visible in dark mode */
+.dark .border               { border-color: #383838 !important; }
+.dark .border-gray-100      { border-color: #333333 !important; }
+.dark .border-gray-200      { border-color: #383838 !important; }
+.dark .border-gray-300      { border-color: #404040 !important; }
+.dark .border-slate-100     { border-color: #333333 !important; }
+.dark .border-slate-200     { border-color: #383838 !important; }
+.dark .border-slate-300     { border-color: #404040 !important; }
+
+/* Text — black & white high contrast */
+.dark .text-slate-900       { color: #ffffff !important; }
+.dark .text-slate-800       { color: #ffffff !important; }
+.dark .text-slate-700       { color: #e8e8e8 !important; }
+.dark .text-slate-600       { color: #c0c0c0 !important; }
+.dark .text-slate-500       { color: #888888 !important; }
+.dark .text-slate-400       { color: #666666 !important; }
+.dark .text-gray-900        { color: #ffffff !important; }
+.dark .text-gray-800        { color: #ffffff !important; }
+.dark .text-gray-700        { color: #e8e8e8 !important; }
+.dark .text-gray-600        { color: #c0c0c0 !important; }
+.dark .text-gray-500        { color: #888888 !important; }
+
+/* Form inputs */
+.dark input:not([type=checkbox]):not([type=radio]),
+.dark select,
+.dark textarea {
+  background-color: #1a1a1a;
+  color: #f0f0f0;
+  border-color: #383838;
+}
+.dark input::placeholder,
+.dark textarea::placeholder    { color: #555555; }
+
+/* ─── Table header accent ─────────────────────────────────────────────────── */
+:not(.dark) thead {
+  background: linear-gradient(90deg, #1e3a5f 0%, #1e40af 100%) !important;
+  color: #ffffff !important;
+}
+:not(.dark) thead th {
+  color: #e0e7ff !important;
+  border-color: #2a4a7f !important;
+}
+.dark thead {
+  background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%) !important;
+  color: #e2e8f0 !important;
+}
+.dark thead th {
+  color: #94a3b8 !important;
+  border-color: #334155 !important;
+}
+
+/* ─── Light mode card visibility ──────────────────────────────────────────── */
+/* Give all white rounded cards a gradient, visible border + shadow           */
+:not(.dark) .bg-white.rounded-2xl,
+:not(.dark) .bg-white.rounded-xl,
+:not(.dark) .bg-white.rounded-lg {
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%) !important;
+  border-color: #94a3b8 !important;           /* slate-400 — hard visible edge */
+  box-shadow: 0 2px 10px rgba(0,0,0,0.09), 0 1px 3px rgba(0,0,0,0.07) !important;
+}
+
+/* Shadows */
+.dark .shadow-sm              { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.4); }
+.dark .shadow-md              { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5); }
+.dark .shadow-lg              { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); }
+.dark .shadow-xl              { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+.dark .shadow-2xl             { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); }
+

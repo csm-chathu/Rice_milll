@@ -1,0 +1,266 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { useLoginMutation } from '../features/auth/authApi';
+import { setCredentials } from '../features/auth/authSlice';
+import { getApiUrl } from '../config/runtimeConfig';
+import { useTheme } from '../contexts/ThemeContext';
+
+const API = getApiUrl();
+const OFFLINE_KEY = 'pos_offline_creds';
+
+async function hashCreds(email, password) {
+  const data = new TextEncoder().encode(email.toLowerCase().trim() + ':' + password);
+  const buf  = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function saveOfflineCreds(hash, auth, appInfo) {
+  try {
+    localStorage.setItem(OFFLINE_KEY, JSON.stringify({ hash, auth, appInfo }));
+  } catch {}
+}
+
+function loadOfflineCreds() {
+  try { return JSON.parse(localStorage.getItem(OFFLINE_KEY) || 'null'); } catch { return null; }
+}
+
+export default function Login() {
+  const [form, setForm]       = useState({ email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError]     = useState('');
+  const [serverError, setServerError] = useState('');
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [appInfo, setAppInfo] = useState(() => {
+    const cached = loadOfflineCreds();
+    return cached?.appInfo || { shop_name: 'Jaliya Rice Mill', shop_logo: '' };
+  });
+
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  const passwordRef = useRef();
+  const [login, { isLoading }] = useLoginMutation();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const on  = () => setIsOffline(false);
+    const off = () => setIsOffline(true);
+    window.addEventListener('online',  on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API}/api/settings/public`)
+      .then(async r => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          setServerError(body.error || `Server error ${r.status}`);
+          return null;
+        }
+        setServerError('');
+        return r.json();
+      })
+      .then(d => {
+        if (!d) return;
+        setAppInfo(d);
+        if (d.default_login_email) setForm(f => ({ ...f, email: d.default_login_email }));
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+
+    // Try online login first
+    if (!isOffline) {
+      try {
+        const res = await login(form).unwrap();
+        // Cache credentials for future offline use
+        const hash = await hashCreds(form.email, form.password);
+        saveOfflineCreds(hash, res, appInfo);
+        dispatch(setCredentials(res));
+        navigate('/dashboard');
+        return;
+      } catch (err) {
+        // Network error → fall through to offline check
+        const isNetworkError = err?.status === 'FETCH_ERROR' || err?.status === 'PARSING_ERROR';
+        if (!isNetworkError) {
+          setError(err?.data?.error || 'Login failed');
+          return;
+        }
+      }
+    }
+
+    // Offline fallback — verify against cached hash
+    try {
+      const stored = loadOfflineCreds();
+      if (!stored) { setError('No offline credentials saved. Please log in online first.'); return; }
+      const hash = await hashCreds(form.email, form.password);
+      if (hash !== stored.hash) { setError('Incorrect email or password'); return; }
+      dispatch(setCredentials(stored.auth));
+      navigate('/dashboard');
+    } catch {
+      setError('Offline login failed');
+    }
+  }
+
+  function fillDemo(email) {
+    setForm({ email, password: 'password' });
+  }
+
+  return (
+    <div>
+      {/* Shop logo + name */}
+      <div className="flex items-center gap-4 mb-6">
+        {appInfo.shop_logo ? (
+          <img src={appInfo.shop_logo} alt="logo"
+            className="w-14 h-14 rounded-2xl object-cover shadow-lg border-2 border-white" />
+        ) : (
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shrink-0"
+              style={{ background: 'linear-gradient(135deg, #15803d, #166534)' }}>
+            <svg className="w-8 h-8" viewBox="0 0 48 48" fill="none">
+              <line x1="24" y1="40" x2="24" y2="10" stroke="#86efac" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M24 32 Q18 28 16 22 Q22 24 24 32Z" fill="#4ade80"/>
+              <path d="M24 32 Q30 28 32 22 Q26 24 24 32Z" fill="#4ade80"/>
+              <path d="M24 24 Q18 20 17 14 Q23 17 24 24Z" fill="#86efac" opacity="0.85"/>
+              <path d="M24 24 Q30 20 31 14 Q25 17 24 24Z" fill="#86efac" opacity="0.85"/>
+              <ellipse cx="24" cy="10" rx="3" ry="4" fill="#fde047"/>
+              <ellipse cx="20" cy="12" rx="2.5" ry="3.5" fill="#fde047" opacity="0.85"/>
+              <ellipse cx="28" cy="12" rx="2.5" ry="3.5" fill="#fde047" opacity="0.85"/>
+            </svg>
+          </div>
+        )}
+        <div>
+          <h1 className="text-xl font-extrabold leading-tight" style={{ color: isDark ? '#f1f5f9' : '#1e293b' }}>{appInfo.shop_name || 'Jaliya Rice Mill'}</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Rice Mill Management System</p>
+        </div>
+      </div>
+
+      {/* Card */}
+      <div className="rounded-2xl shadow-sm border p-7 transition-colors duration-300"
+        style={isDark ? { backgroundColor: '#1f2937', borderColor: '#374151' } : { backgroundColor: '#fff', borderColor: '#e2e8f0' }}>
+
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-bold" style={{ color: isDark ? '#f1f5f9' : '#1e293b' }}>Welcome back</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Sign in to your account</p>
+          </div>
+          {isOffline ? (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Offline
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 text-xs font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              Online
+            </span>
+          )}
+        </div>
+
+        {serverError && (
+          <div className="mb-5 px-3 py-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+            <div className="flex items-start gap-2.5 mb-2">
+              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              <div>
+                <p className="font-bold text-sm text-red-800 mb-0.5">Service Unavailable</p>
+                <p className="text-red-600">Please contact your system administrator.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-1.5 pt-2 border-t border-red-200">
+              <span className="text-red-500 shrink-0">Error code:</span>
+              <span className="font-mono text-red-700 bg-red-100 px-1.5 py-0.5 rounded select-all break-all">
+                {btoa(serverError).slice(0, 12).toUpperCase()}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {isOffline && loadOfflineCreds() && (
+          <div className="mb-4 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+            You're offline. Sign in with your saved credentials.
+          </div>
+        )}
+        {isOffline && !loadOfflineCreds() && (
+          <div className="mb-4 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+            No offline credentials saved. Connect to the internet to log in.
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wide" style={{ color: isDark ? '#94a3b8' : '#475569' }}>Email / Username</label>
+            <input
+              type="text" required autoFocus autoComplete="username"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              onBlur={e => { if (e.target.value.trim()) passwordRef.current?.focus(); }}
+              className="w-full rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-green-600 transition"
+              style={isDark ? { backgroundColor: '#111827', border: '1px solid #374151', color: '#f1f5f9' } : { backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a' }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wide" style={{ color: isDark ? '#94a3b8' : '#475569' }}>Password</label>
+            <div className="relative">
+              <input
+                ref={passwordRef}
+                type={showPassword ? 'text' : 'password'} required
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                className="w-full rounded-xl px-4 py-3 pr-11 text-sm outline-none focus:ring-2 focus:ring-green-600 transition"
+                style={isDark ? { backgroundColor: '#111827', border: '1px solid #374151', color: '#f1f5f9' } : { backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit" disabled={isLoading}
+            className="w-full py-3 rounded-xl bg-green-700 text-white font-bold text-sm disabled:opacity-60 hover:bg-green-800 active:bg-green-900 transition-colors shadow-md flex items-center justify-center gap-2 mt-2"
+          >
+            {isLoading ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+              </svg>
+            )}
+            {isLoading ? 'Signing in…' : isOffline ? 'Sign In Offline' : 'Sign In'}
+          </button>
+        </form>
+      </div>
+
+    </div>
+  );
+}

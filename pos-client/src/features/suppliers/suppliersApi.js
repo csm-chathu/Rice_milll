@@ -1,0 +1,65 @@
+import { api } from '../../app/baseApi';
+
+export const suppliersApi = api.injectEndpoints({
+  endpoints: build => ({
+    getSuppliers: build.query({
+      query: () => '/suppliers',
+      keepUnusedDataFor: 7200,
+      providesTags: (r) =>
+        r ? [...r.map(s => ({ type: 'Suppliers', id: s.id })), { type: 'Suppliers', id: 'LIST' }]
+          : [{ type: 'Suppliers', id: 'LIST' }],
+    }),
+    createSupplier: build.mutation({
+      query: body => ({ url: '/suppliers', method: 'POST', body }),
+      invalidatesTags: [{ type: 'Suppliers', id: 'LIST' }],
+    }),
+    updateSupplier: build.mutation({
+      query: ({ id, ...body }) => ({ url: `/suppliers/${id}`, method: 'PUT', body }),
+      invalidatesTags: (r, e, { id }) => [{ type: 'Suppliers', id }, { type: 'Suppliers', id: 'LIST' }],
+    }),
+    deleteSupplier: build.mutation({
+      query: id => ({ url: `/suppliers/${id}`, method: 'DELETE' }),
+      invalidatesTags: [{ type: 'Suppliers', id: 'LIST' }],
+    }),
+    getSupplierCreditHistory: build.query({
+      query: id => `/suppliers/${id}/credit-history`,
+      providesTags: (r, e, id) => [{ type: 'SupplierCredit', id }],
+    }),
+    settleSupplierCredit: build.mutation({
+      query: ({ id, ...body }) => ({ url: `/suppliers/${id}/settle-credit`, method: 'POST', body }),
+      invalidatesTags: (r, e, { id }) => [
+        { type: 'SupplierCredit', id },
+        { type: 'Suppliers', id: 'LIST' },
+        { type: 'Purchases', id: 'LIST' },
+        { type: 'SupplierPayments', id: 'LIST' },
+      ],
+    }),
+    getAllSupplierPayments: build.query({
+      query: params => ({ url: '/suppliers/payments', params }),
+      providesTags: [{ type: 'SupplierPayments', id: 'LIST' }],
+    }),
+    deleteSupplierPayment: build.mutation({
+      query: ({ supplierId, paymentId }) => ({
+        url: `/suppliers/${supplierId}/payments/${paymentId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (r, e, { supplierId }) => [
+        { type: 'SupplierCredit', id: supplierId },
+        { type: 'Suppliers', id: 'LIST' },
+        { type: 'Purchases', id: 'LIST' },
+        { type: 'SupplierPayments', id: 'LIST' },
+      ],
+    }),
+  }),
+});
+
+export const {
+  useGetSuppliersQuery,
+  useCreateSupplierMutation,
+  useUpdateSupplierMutation,
+  useDeleteSupplierMutation,
+  useGetSupplierCreditHistoryQuery,
+  useSettleSupplierCreditMutation,
+  useGetAllSupplierPaymentsQuery,
+  useDeleteSupplierPaymentMutation,
+} = suppliersApi;

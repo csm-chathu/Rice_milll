@@ -1,0 +1,391 @@
+import { useState, useEffect, useRef } from 'react';
+import { useForm } from 'react-hook-form';
+import {
+  useGetCategoriesQuery, useCreateCategoryMutation,
+  useUpdateCategoryMutation, useDeleteCategoryMutation,
+  useToggleCategoryPOSMutation,
+} from '../../features/categories/categoriesApi';
+import { useLocale } from '../../contexts/LocaleContext';
+import { useConnectivity } from '../../contexts/ConnectivityContext';
+import { getLocalCategories } from '../../services/cacheSync';
+import { enqueueCategoryCreate, enqueueCategoryEdit, getPendingQueueByTypes } from '../../services/offlineQueue';
+import ConfirmModal from '../../components/ConfirmModal';
+
+const empty = { name: '', image: '' };
+const PAGE_SIZE = 15;
+
+export default function CategoriesIndex() {
+  const { t } = useLocale();
+  const { isOnline } = useConnectivity();
+  const [modal, setModal]               = useState(null);
+  const [err, setErr]                   = useState('');
+  const [saving, setSaving]             = useState(false);
+  const [imagePreview, setImagePreview] = useState('');
+  const [offlineCategories, setOfflineCategories] = useState([]);
+  const [pendingCategories, setPendingCategories] = useState([]);
+  const [confirmDelete, setConfirmDelete]         = useState(null);
+  const [search, setSearch]             = useState('');
+  const [page, setPage]                 = useState(1);
+  const fileRef = useRef();
+
+  const { register, handleSubmit: rhfSubmit, formState: { errors }, reset, setFocus, setValue } = useForm({ defaultValues: empty });
+
+  const loadPending = () => getPendingQueueByTypes(['category_create']).then(setPendingCategories);
+
+  useEffect(() => {
+    if (!isOnline) getLocalCategories().then(setOfflineCategories);
+    loadPending();
+  }, [isOnline]);
+
+  const { data: serverCategories = [], isLoading, refetch } = useGetCategoriesQuery(undefined, { skip: !isOnline });
+  const baseCategories = isOnline ? serverCategories : offlineCategories;
+  const categories = [...pendingCategories, ...baseCategories.filter(c => !pendingCategories.some(p => p.id === c.id))];
+
+  const filtered = categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const [create, { isLoading: creating }] = useCreateCategoryMutation();
+  const [update, { isLoading: updating }] = useUpdateCategoryMutation();
+  const [del]                             = useDeleteCategoryMutation();
+  const [togglePOS]                       = useToggleCategoryPOSMutation();
+
+  function openCreate() {
+    reset(empty);
+    setImagePreview('');
+    setErr('');
+    setModal('form');
+    setTimeout(() => setFocus('name'), 50);
+  }
+
+  function openEdit(c) {
+    reset({ name: c.name, image: c.image || '' });
+    setImagePreview(c.image || '');
+    setErr('');
+    setModal({ edit: c });
+    setTimeout(() => setFocus('name'), 50);
+  }
+
+  function close() { setModal(null); setImagePreview(''); }
+
+  function handleImageFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      setImagePreview(ev.target.result);
+      setValue('image', ev.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeImage() {
+    setImagePreview('');
+    setValue('image', '');
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  const handleSave = rhfSubmit(async (data) => {
+    setErr('');
+    setSaving(true);
+    try {
+      const payload = { name: data.name.trim(), image: data.image || null };
+      if (isOnline) {
+        if (modal?.edit) await update({ id: modal.edit.id, ...payload }).unwrap();
+        else await create(payload).unwrap();
+        refetch();
+      } else {
+        if (modal?.edit) {
+          await enqueueCategoryEdit(modal.edit.id, payload);
+          setOfflineCategories(prev => prev.map(c =>
+            c.id === modal.edit.id ? { ...c, ...payload } : c
+          ));
+        } else {
+          await enqueueCategoryCreate(payload);
+          await loadPending();
+        }
+      }
+      close();
+    } catch (e) { setErr(e?.data?.error || 'Failed'); }
+    finally { setSaving(false); }
+  });
+
+  async function handleDelete(c) { setConfirmDelete(c); }
+  async function confirmDeleteAction() {
+    await del(confirmDelete.id);
+    setConfirmDelete(null);
+    refetch();
+  }
+
+  const isBusy = creating || updating || saving;
+
+  function CatAvatar({ cat, size = 'md' }) {
+    const cls = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm';
+    if (cat.image) return <img src={cat.image} alt="" className={`${cls} rounded-lg object-cover shrink-0`} />;
+    return (
+      <div className={`${cls} rounded-lg bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center text-blue-700 font-black shrink-0`}>
+        {cat.name?.[0]?.toUpperCase()}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 sm:p-6 space-y-4">
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <h1 className="text-xl font-bold text-slate-800">{t('page.categories')}</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          {!isOnline && (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Offline
+            </span>
+          )}
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search categories…"
+              className="pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-52"
+            />
+            {search && (
+              <button onClick={() => { setSearch(''); setPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+            )}
+          </div>
+          <button onClick={openCreate}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+            {t('btn.add')} {t('nav.categories')}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading && <div className="p-8 text-center text-slate-400 text-sm bg-white rounded-xl border">{t('lbl.loading')}</div>}
+        {!isLoading && filtered.length === 0 && (
+          <div className="p-8 text-center text-slate-400 text-sm bg-white rounded-xl border">{search ? `No results for "${search}"` : 'No categories yet'}</div>
+        )}
+        {paginated.map(c => (
+          <div key={c.id} className="bg-white rounded-xl border shadow-sm p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CatAvatar cat={c} />
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-slate-800">{c.name}</p>
+                  {c.show_in_pos
+                    ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">POS</span>
+                    : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200">Hidden</span>
+                  }
+                </div>
+                {c.createdAt && <p className="text-[10px] text-slate-400 mt-0.5">{new Date(c.createdAt).toLocaleDateString('en-LK', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                {(c._offline || c._pending) && <p className="text-[10px] text-amber-600 font-medium mt-0.5">Pending sync</p>}
+              </div>
+            </div>
+            <div className="flex gap-1.5 items-center">
+              <button
+                onClick={() => isOnline && togglePOS({ id: c.id, show_in_pos: !c.show_in_pos })}
+                disabled={!isOnline}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${c.show_in_pos ? 'bg-blue-600' : 'bg-slate-300'} ${!isOnline ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${c.show_in_pos ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+              <button onClick={() => openEdit(c)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                {t('btn.edit')}
+              </button>
+              {isOnline && (
+                <button onClick={() => handleDelete(c)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"/></svg>
+                  {t('btn.delete')}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-sm border overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center text-slate-400 text-sm">{t('lbl.loading')}</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-slate-200 border-b border-slate-300 text-xs text-slate-600 uppercase tracking-wider">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold w-10">#</th>
+                <th className="px-4 py-3 text-left font-semibold">Image</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('cust.name')}</th>
+                <th className="px-4 py-3 text-left font-semibold">Created</th>
+                <th className="px-4 py-3 text-center font-semibold">Show in POS</th>
+                <th className="px-4 py-3 text-right font-semibold">{t('th.actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{search ? `No results for "${search}"` : 'No categories yet'}</td></tr>
+              )}
+              {paginated.map((c, i) => (
+                <tr key={c.id} className="odd:bg-white even:bg-slate-50 hover:bg-blue-50 border-b border-slate-100 transition-colors">
+                  <td className="px-4 py-3 text-slate-400 text-xs">{(safePage - 1) * PAGE_SIZE + i + 1}</td>
+                  <td className="px-4 py-3">
+                    <CatAvatar cat={c} size="sm" />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-800">{c.name}</span>
+                      {c.show_in_pos
+                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">POS</span>
+                        : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200">Hidden</span>
+                      }
+                      {(c._offline || c._pending) && <span className="text-[10px] text-amber-600 font-medium">Pending sync</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                    {c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-LK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => isOnline && togglePOS({ id: c.id, show_in_pos: !c.show_in_pos })}
+                      disabled={!isOnline}
+                      title={c.show_in_pos ? 'Shown in POS — click to hide' : 'Hidden from POS — click to show'}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${c.show_in_pos ? 'bg-blue-600' : 'bg-slate-300'} ${!isOnline ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${c.show_in_pos ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => openEdit(c)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        {t('btn.edit')}
+                      </button>
+                      {isOnline && (
+                        <button onClick={() => handleDelete(c)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"/></svg>
+                          {t('btn.delete')}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-slate-500 text-xs">
+            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(1)} disabled={safePage === 1}
+              className="px-2 py-1 rounded border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">«</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
+              className="px-3 py-1 rounded border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">‹ Prev</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+              .reduce((acc, p, idx, arr) => {
+                if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) => p === '…'
+                ? <span key={`gap-${idx}`} className="px-1 text-slate-400 text-xs">…</span>
+                : <button key={p} onClick={() => setPage(p)}
+                    className={`px-3 py-1 rounded border text-xs font-semibold transition-colors ${safePage === p ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                    {p}
+                  </button>
+              )}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+              className="px-3 py-1 rounded border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">Next ›</button>
+            <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages}
+              className="px-2 py-1 rounded border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">»</button>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          message={`Delete "${confirmDelete.name}"?`}
+          onConfirm={confirmDeleteAction}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {/* Modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-slate-800">
+                {modal?.edit ? t('page.edit_category') : `${t('btn.add')} ${t('nav.categories')}`}
+              </h2>
+              <button onClick={close} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+            </div>
+            {!isOnline && (
+              <div className="flex items-center gap-1.5 px-3 py-2 mb-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                Offline — will sync when reconnected
+              </div>
+            )}
+            <form onSubmit={handleSave} className="space-y-4">
+              {err && <p className="text-sm text-red-600">{err}</p>}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('cust.name')} *</label>
+                <input
+                  {...register('name', { required: 'Name is required', validate: v => v.trim() !== '' || 'Name is required' })}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${errors.name ? 'border-red-400 focus:ring-red-400' : 'border-slate-200 focus:ring-blue-500'}`}
+                />
+                {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Category Image</label>
+                {imagePreview ? (
+                  <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200">
+                    <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                    <button type="button" onClick={removeImage}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center leading-none hover:bg-red-600">
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => fileRef.current?.click()}
+                    className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-1 text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span className="text-[10px] font-medium">Upload</span>
+                  </button>
+                )}
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
+                <input type="hidden" {...register('image')} />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={close}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
+                  {t('btn.cancel')}
+                </button>
+                <button type="submit" disabled={isBusy}
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-60 hover:bg-blue-700 flex items-center gap-2">
+                  {isBusy && (
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                  )}
+                  {isBusy ? t('lbl.loading') : t('btn.save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

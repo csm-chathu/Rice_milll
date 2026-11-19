@@ -1,0 +1,242 @@
+const router = require('express').Router();
+const auth   = require('../middleware/auth');
+const role   = require('../middleware/role');
+const { postSupplierPayment } = require('../helpers/accounting');
+
+router.get('/', auth, async (req, res) => {
+  const { Supplier } = req.models;
+  const suppliers = await Supplier.findAll({ order: [['name', 'ASC']] });
+  res.json(suppliers);
+});
+
+router.post('/', auth, role('admin', 'manager'), async (req, res) => {
+  const { Supplier } = req.models;
+  res.status(201).json(await Supplier.create(req.body));
+});
+
+router.get('/payments', auth, async (req, res) => {
+  const { SupplierPayment, Supplier, User } = req.models;
+  const { Op } = require('sequelize');
+  const page   = Math.max(1, parseInt(req.query.page  || '1'));
+  const limit  = Math.min(100, parseInt(req.query.limit || '25'));
+  const search = req.query.search || '';
+
+  const where = {};
+  if (search) {
+    const matching = await Supplier.findAll({
+      attributes: ['id'],
+      where: { [Op.or]: [
+        { name:  { [Op.like]: `%${search}%` } },
+        { phone: { [Op.like]: `%${search}%` } },
+      ]},
+      raw: true,
+    });
+    where.supplier_id = matching.map(s => s.id);
+    if (where.supplier_id.length === 0) {
+      return res.json({ data: [], total: 0, page, last_page: 1 });
+    }
+  }
+
+  const { count, rows } = await SupplierPayment.findAndCountAll({
+    where,
+    include: [
+      { model: Supplier, as: 'supplier', attributes: ['id', 'name', 'phone'] },
+      { model: User,     as: 'user',     attributes: ['name'] },
+    ],
+    order: [['created_at', 'DESC']],
+    limit,
+    offset: (page - 1) * limit,
+  });
+
+  res.json({
+    data: rows.map(p => ({
+      id: p.id,
+      ref_no: p.ref_no,
+      amount: p.amount,
+      note: p.note,
+      created_at: p.created_at,
+      supplier_name: p.supplier?.name || '—',
+      supplier_phone: p.supplier?.phone || '',
+      recorded_by: p.user?.name || '—',
+    })),
+    total: count,
+    page,
+    last_page: Math.ceil(count / limit),
+  });
+});
+
+router.get('/:id', auth, async (req, res) => {
+  const { Supplier } = req.models;
+  const s = await Supplier.findByPk(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Not found' });
+  res.json(s);
+});
+
+router.put('/:id', auth, role('admin', 'manager'), async (req, res) => {
+  const { Supplier } = req.models;
+  const s = await Supplier.findByPk(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Not found' });
+  await s.update(req.body);
+  res.json(s);
+});
+
+router.delete('/:id', auth, role('admin', 'manager'), async (req, res) => {
+  const { Supplier } = req.models;
+  const s = await Supplier.findByPk(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Not found' });
+  await s.destroy();
+  res.json({ message: 'Deleted' });
+});
+
+router.get('/:id/credit-history', auth, async (req, res) => {
+  const { Supplier, SupplierPayment, Purchase, User } = req.models;
+  const supplier = await Supplier.findByPk(req.params.id);
+  if (!supplier) return res.status(404).json({ error: 'Not found' });
+
+  const [payments, purchases] = await Promise.all([
+    SupplierPayment.findAll({
+      where: { supplier_id: supplier.id },
+      include: [{ model: User, as: 'user', attributes: ['name'] }],
+      order: [['created_at', 'DESC']],
+    }),
+    Purchase.findAll({
+      where: { supplier_id: supplier.id },
+      order: [['id', 'DESC']],
+    }),
+  ]);
+
+  // Compute real outstanding from purchases rather than trusting the denormalized field
+  const realOutstanding = purchases.reduce((sum, p) => {
+    if (p.status === 'pending' || p.status === 'partial') {
+      return sum + Math.max(0, parseFloat(p.total) - parseFloat(p.paid));
+    }
+    return sum;
+  }, 0);
+
+  // Keep DB field in sync
+  if (Math.abs(realOutstanding - parseFloat(supplier.payable_balance)) > 0.01) {
+    await supplier.update({ payable_balance: realOutstanding });
+  }
+
+  res.json({
+    supplier: {
+      id: supplier.id, name: supplier.name, phone: supplier.phone,
+      payable_balance: realOutstanding,
+    },
+    payments: payments.map(p => ({
+      id: p.id, ref_no: p.ref_no, amount: p.amount, note: p.note,
+      created_at: p.created_at, recorded_by: p.user?.name || '—',
+    })),
+    purchases: purchases.map(p => ({
+      id: p.id, grn_no: p.grn_no, total: p.total, paid: p.paid,
+      unpaid: Math.max(0, parseFloat(p.total) - parseFloat(p.paid)),
+      status: p.status, purchase_date: p.purchase_date,
+    })),
+  });
+});
+
+router.delete('/:id/payments/:paymentId', auth, role('admin', 'manager'), async (req, res) => {
+  const { Supplier, SupplierPayment, Purchase } = req.models;
+
+  const supplier = await Supplier.findByPk(req.params.id);
+  if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+
+  const payment = await SupplierPayment.findOne({
+    where: { id: req.params.paymentId, supplier_id: req.params.id },
+  });
+  if (!payment) return res.status(404).json({ error: 'Payment not found' });
+
+  await payment.destroy();
+
+  // Reset all GRNs for this supplier to unpaid, then re-apply remaining payments FIFO
+  const allGRNs = await Purchase.findAll({
+    where: { supplier_id: supplier.id },
+    order: [['id', 'ASC']],
+  });
+
+  for (const grn of allGRNs) {
+    await grn.update({ paid: 0, status: 'pending' });
+  }
+
+  const remainingPayments = await SupplierPayment.findAll({
+    where: { supplier_id: supplier.id },
+    order: [['created_at', 'ASC']],
+  });
+
+  for (const pmt of remainingPayments) {
+    let remaining = parseFloat(pmt.amount);
+    for (const grn of allGRNs) {
+      if (remaining <= 0) break;
+      await grn.reload();
+      const unpaid = parseFloat(grn.total) - parseFloat(grn.paid);
+      if (unpaid <= 0) continue;
+      const applying = Math.min(remaining, unpaid);
+      const newPaid  = parseFloat(grn.paid) + applying;
+      const newStatus = newPaid >= parseFloat(grn.total) - 0.005 ? 'received' : 'partial';
+      await grn.update({ paid: newPaid, status: newStatus });
+      remaining -= applying;
+    }
+  }
+
+  const freshGRNs = await Purchase.findAll({ where: { supplier_id: supplier.id } });
+  const outstanding = freshGRNs.reduce((sum, g) => {
+    if (g.status === 'pending' || g.status === 'partial') {
+      return sum + Math.max(0, parseFloat(g.total) - parseFloat(g.paid));
+    }
+    return sum;
+  }, 0);
+
+  await supplier.update({ payable_balance: outstanding });
+  res.json({ message: 'Payment deleted', payable_balance: outstanding });
+});
+
+router.post('/:id/settle-credit', auth, role('admin', 'manager'), async (req, res) => {
+  const { Supplier, SupplierPayment, Purchase } = req.models;
+  const supplier = await Supplier.findByPk(req.params.id);
+  if (!supplier) return res.status(404).json({ error: 'Not found' });
+
+  const amount = parseFloat(req.body.amount);
+  if (!amount || amount <= 0) return res.status(422).json({ error: 'Invalid amount' });
+
+  // Compute real outstanding from actual purchases (avoids stale payable_balance)
+  const unpaidGRNs = await Purchase.findAll({
+    where: { supplier_id: supplier.id, status: ['pending', 'partial'] },
+    order: [['id', 'ASC']],
+  });
+  const realOutstanding = unpaidGRNs.reduce((sum, p) =>
+    sum + Math.max(0, parseFloat(p.total) - parseFloat(p.paid)), 0);
+
+  if (amount > realOutstanding + 0.005) {
+    return res.status(422).json({ error: `Amount exceeds outstanding balance of ${realOutstanding.toFixed(2)}` });
+  }
+
+  // Record the payment entry
+  const d = new Date();
+  const ref_no = `PAY-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${Date.now().toString().slice(-5)}`;
+  await SupplierPayment.create({ ref_no, supplier_id: supplier.id, user_id: req.user.id, amount, note: req.body.note });
+
+  // Allocate payment to oldest unpaid GRNs first (FIFO) — reuses unpaidGRNs fetched above
+  let remaining = amount;
+  for (const grn of unpaidGRNs) {
+    if (remaining <= 0) break;
+    const unpaid = parseFloat(grn.total) - parseFloat(grn.paid);
+    if (unpaid <= 0) continue;
+
+    const applying = Math.min(remaining, unpaid);
+    const newPaid  = parseFloat(grn.paid) + applying;
+    const newStatus = newPaid >= parseFloat(grn.total) - 0.005 ? 'received' : 'partial';
+    await grn.update({ paid: newPaid, status: newStatus });
+    remaining -= applying;
+  }
+
+  // Update supplier payable balance (sync from real outstanding)
+  const newBalance = Math.max(0, realOutstanding - amount);
+  await supplier.update({ payable_balance: newBalance });
+
+  // Post to accounting journal (no-op if module disabled or accounts not seeded)
+  postSupplierPayment(req.models, { ref_no, amount, user_id: req.user.id });
+
+  res.json({ message: 'Payment recorded', payable_balance: newBalance });
+});
+
+module.exports = router;

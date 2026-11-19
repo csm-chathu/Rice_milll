@@ -1,0 +1,781 @@
+const { DataTypes } = require('sequelize');
+
+function getModels(sequelize) {
+  const User = sequelize.define('User', {
+    id:       { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:     { type: DataTypes.STRING(191), allowNull: false },
+    email:    { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    password: { type: DataTypes.STRING(191), allowNull: false },
+  }, { tableName: 'users' });
+
+  const Role = sequelize.define('Role', {
+    id:   { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name: { type: DataTypes.STRING(191), allowNull: false },
+  }, { tableName: 'roles', timestamps: false });
+
+  const Category = sequelize.define('Category', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:        { type: DataTypes.STRING(191), allowNull: false },
+    image:       { type: DataTypes.STRING(512), allowNull: true },
+    active:      { type: DataTypes.BOOLEAN, defaultValue: true },
+    show_in_pos: { type: DataTypes.BOOLEAN, defaultValue: false },
+  }, { tableName: 'categories' });
+
+  const Product = sequelize.define('Product', {
+    id:             { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    category_id:    { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    name:           { type: DataTypes.STRING(191), allowNull: false },
+    name_si:        { type: DataTypes.STRING(191), allowNull: true },
+    barcode:        { type: DataTypes.STRING(191), allowNull: true },
+    sku:            { type: DataTypes.STRING(191), allowNull: true },
+    description:    { type: DataTypes.TEXT, allowNull: true },
+    image:          { type: DataTypes.STRING(512), allowNull: true },
+    cost_price:     { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    selling_price:  { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    wholesale_price:{ type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    promo_price:    { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    promo_start_date:{ type: DataTypes.DATEONLY, allowNull: true },
+    promo_end_date: { type: DataTypes.DATEONLY, allowNull: true },
+    our_price:      { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    expiry_date:    { type: DataTypes.DATEONLY, allowNull: true },
+    stock_qty:      { type: DataTypes.DECIMAL(10, 3), defaultValue: 0 },
+    alert_qty:      { type: DataTypes.DECIMAL(10, 3), defaultValue: 5 },
+    unit:           { type: DataTypes.STRING(191), defaultValue: 'pcs' },
+    active:         { type: DataTypes.BOOLEAN, defaultValue: true },
+    is_fast_moving: { type: DataTypes.BOOLEAN, defaultValue: false },
+  }, { tableName: 'products' });
+
+  const ProductVariant = sequelize.define('ProductVariant', {
+    id:                { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    product_id:        { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    label:             { type: DataTypes.STRING(191), allowNull: false },
+    barcode:           { type: DataTypes.STRING(191), allowNull: true },
+    cost_price:        { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    selling_price:     { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    wholesale_price:   { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    stock_qty:         { type: DataTypes.DECIMAL(10, 3), defaultValue: 0 },
+    alert_qty:         { type: DataTypes.DECIMAL(10, 3), defaultValue: 5 },
+    conversion_factor: { type: DataTypes.DECIMAL(10, 6), defaultValue: 1 },
+  }, { tableName: 'product_variants' });
+
+  const Supplier = sequelize.define('Supplier', {
+    id:              { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:            { type: DataTypes.STRING(191), allowNull: false },
+    phone:           { type: DataTypes.STRING(191), allowNull: true },
+    email:           { type: DataTypes.STRING(191), allowNull: true },
+    address:         { type: DataTypes.TEXT, allowNull: true },
+    active:          { type: DataTypes.BOOLEAN, defaultValue: true },
+    payable_balance: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  }, { tableName: 'suppliers' });
+
+  const SupplierPayment = sequelize.define('SupplierPayment', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    ref_no:      { type: DataTypes.STRING(191), allowNull: true, unique: true },
+    supplier_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    user_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    amount:      { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    note:        { type: DataTypes.STRING(191), allowNull: true },
+  }, { tableName: 'supplier_payments' });
+
+  const Customer = sequelize.define('Customer', {
+    id:             { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:           { type: DataTypes.STRING(191), allowNull: false },
+    phone:          { type: DataTypes.STRING(191), allowNull: true },
+    email:          { type: DataTypes.STRING(191), allowNull: true },
+    address:        { type: DataTypes.TEXT, allowNull: true },
+    credit_limit:   { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    credit_balance: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    active:         { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, { tableName: 'customers' });
+
+  const Sale = sequelize.define('Sale', {
+    id:           { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    invoice_no:   { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    client_id:    { type: DataTypes.STRING(50), allowNull: true, unique: true },
+    user_id:      { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    customer_id:  { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    subtotal:     { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    discount:     { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    tax:          { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    extra_charges:{ type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    total:        { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    paid:         { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    balance:      { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    status:       { type: DataTypes.ENUM('completed', 'held', 'returned'), defaultValue: 'completed' },
+    note:         { type: DataTypes.TEXT, allowNull: true },
+  }, { tableName: 'sales' });
+
+  const SaleItem = sequelize.define('SaleItem', {
+    id:             { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    sale_id:        { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    product_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    variant_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    product_name:   { type: DataTypes.STRING(191), allowNull: false },
+    unit_price:     { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    original_price: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    cost_price:     { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    qty:            { type: DataTypes.DECIMAL(10, 3), allowNull: false },
+    discount:       { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    total:          { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  }, { tableName: 'sale_items' });
+
+  const Payment = sequelize.define('Payment', {
+    id:        { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    sale_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    method:    { type: DataTypes.ENUM('cash', 'card', 'qr', 'credit'), defaultValue: 'cash' },
+    amount:    { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    reference: { type: DataTypes.STRING(191), allowNull: true },
+  }, { tableName: 'payments' });
+
+  const SaleReturn = sequelize.define('SaleReturn', {
+    id:        { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    sale_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    user_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    return_no: { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    reason:    { type: DataTypes.TEXT, allowNull: true },
+    total:     { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    items:     { type: DataTypes.JSON, allowNull: false },
+  }, { tableName: 'sale_returns' });
+
+  const PurchaseReturn = sequelize.define('PurchaseReturn', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    purchase_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    user_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    return_no:   { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    reason:      { type: DataTypes.TEXT, allowNull: true },
+    total:       { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    items:       { type: DataTypes.JSON, allowNull: false },
+  }, { tableName: 'purchase_returns' });
+
+  const SupplierReturn = sequelize.define('SupplierReturn', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    srn_no:      { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    purchase_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    supplier_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    user_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    return_type: { type: DataTypes.ENUM('damaged', 'expired', 'other'), defaultValue: 'other' },
+    notes:       { type: DataTypes.TEXT, allowNull: true },
+    total:       { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+  }, { tableName: 'supplier_returns' });
+
+  const SupplierReturnItem = sequelize.define('SupplierReturnItem', {
+    id:                 { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    supplier_return_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    product_id:         { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    product_name:       { type: DataTypes.STRING(191), allowNull: false },
+    qty:                { type: DataTypes.DECIMAL(12, 3), allowNull: false },
+    cost_price:         { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    total:              { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+  }, { tableName: 'supplier_return_items', timestamps: false });
+
+  const Purchase = sequelize.define('Purchase', {
+    id:            { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    grn_no:        { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    supplier_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    user_id:       { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    subtotal:      { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    discount:      { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    total:         { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    paid:          { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    status:        { type: DataTypes.ENUM('received', 'pending', 'partial'), defaultValue: 'received' },
+    purchase_date: { type: DataTypes.DATEONLY, allowNull: false },
+    due_date:      { type: DataTypes.DATEONLY, allowNull: true },
+    note:          { type: DataTypes.TEXT, allowNull: true },
+  }, { tableName: 'purchases' });
+
+  const PurchaseItem = sequelize.define('PurchaseItem', {
+    id:            { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    purchase_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    product_id:    { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    product_name:  { type: DataTypes.STRING(191), allowNull: false },
+    qty:           { type: DataTypes.DECIMAL(10, 3), allowNull: false },
+    free_qty:      { type: DataTypes.DECIMAL(10, 3), defaultValue: 0 },
+    cost_price:    { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    selling_price: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    total:         { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  }, { tableName: 'purchase_items' });
+
+  const StockMovement = sequelize.define('StockMovement', {
+    id:           { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    product_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    user_id:      { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    type:         { type: DataTypes.ENUM('in', 'out', 'adjustment', 'return'), allowNull: false },
+    qty:          { type: DataTypes.DECIMAL(10, 3), allowNull: false },
+    stock_before: { type: DataTypes.DECIMAL(10, 3), allowNull: false },
+    stock_after:  { type: DataTypes.DECIMAL(10, 3), allowNull: false },
+    reference:    { type: DataTypes.STRING(191), allowNull: true },
+    note:         { type: DataTypes.TEXT, allowNull: true },
+  }, { tableName: 'stock_movements' });
+
+  const CreditPayment = sequelize.define('CreditPayment', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    invoice_no:  { type: DataTypes.STRING(191), allowNull: true, unique: true },
+    customer_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    user_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    amount:      { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    note:        { type: DataTypes.STRING(191), allowNull: true },
+  }, { tableName: 'credit_payments' });
+
+  const Setting = sequelize.define('Setting', {
+    id:    { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    key:   { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    value: { type: DataTypes.TEXT('long'), allowNull: true },
+  }, { tableName: 'settings', timestamps: false });
+
+  const ProductBatch = sequelize.define('ProductBatch', {
+    id:            { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    product_id:    { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    batch_label:   { type: DataTypes.STRING(100), allowNull: true },
+    qty:           { type: DataTypes.DECIMAL(10, 3), defaultValue: 0 },
+    cost_price:    { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    selling_price: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    expiry_date:   { type: DataTypes.DATEONLY, allowNull: true },
+    received_at:   { type: DataTypes.DATEONLY, allowNull: false },
+  }, { tableName: 'product_batches', underscored: true });
+
+  const ProductDiscountTier = sequelize.define('ProductDiscountTier', {
+    id:         { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    product_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    min_qty:    { type: DataTypes.DECIMAL(10, 3), allowNull: false },
+    discount:   { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  }, { tableName: 'product_discount_tiers', underscored: true });
+
+  const Account = sequelize.define('Account', {
+    id:        { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    code:      { type: DataTypes.STRING(20), allowNull: false, unique: true },
+    name:      { type: DataTypes.STRING(191), allowNull: false },
+    type:      { type: DataTypes.ENUM('asset', 'liability', 'equity', 'income', 'expense'), allowNull: false },
+    parent_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+  }, { tableName: 'accounts', timestamps: false });
+
+  const JournalEntry = sequelize.define('JournalEntry', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    ref_no:      { type: DataTypes.STRING(20), allowNull: false, unique: true },
+    date:        { type: DataTypes.DATEONLY, allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    user_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'journal_entries' });
+
+  const JournalLine = sequelize.define('JournalLine', {
+    id:         { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    entry_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    account_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    debit:      { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    credit:     { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    note:       { type: DataTypes.STRING(191), allowNull: true },
+  }, { tableName: 'journal_lines', timestamps: false });
+
+  const Feature = sequelize.define('Feature', {
+    id:         { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    key:        { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    label:      { type: DataTypes.STRING(191), allowNull: false },
+    path:       { type: DataTypes.STRING(191), allowNull: true },
+    group:      { type: DataTypes.STRING(50), allowNull: true },
+    sort_order: { type: DataTypes.INTEGER, defaultValue: 0 },
+    icon:       { type: DataTypes.STRING(32), allowNull: true },
+    offline_ok: { type: DataTypes.BOOLEAN, defaultValue: false },
+  }, { tableName: 'features', timestamps: false });
+
+  const Employee = sequelize.define('Employee', {
+    id:                 { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:               { type: DataTypes.STRING(191), allowNull: false },
+    position:           { type: DataTypes.STRING(191), allowNull: true },
+    phone:              { type: DataTypes.STRING(50),  allowNull: true },
+    address:            { type: DataTypes.TEXT,        allowNull: true },
+    basic_salary:       { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    hired_date:         { type: DataTypes.DATEONLY,    allowNull: true },
+    device_employee_id:  { type: DataTypes.STRING(50),  allowNull: true },
+    salary_calculation:  { type: DataTypes.ENUM('daily_rate', 'deduction', 'manual', 'hourly_rate'), defaultValue: 'manual' },
+    hourly_rate:         { type: DataTypes.DECIMAL(10, 2), defaultValue: 150 },
+    active:              { type: DataTypes.BOOLEAN,     defaultValue: true },
+  }, { tableName: 'employees' });
+
+  const SalaryPayment = sequelize.define('SalaryPayment', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    ref_no:      { type: DataTypes.STRING(191), allowNull: true, unique: true },
+    employee_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    user_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    period:      { type: DataTypes.STRING(20),  allowNull: false }, // e.g. "2024-10"
+    amount:      { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    note:        { type: DataTypes.STRING(191), allowNull: true },
+  }, { tableName: 'salary_payments' });
+
+  const AttendanceSetting = sequelize.define('AttendanceSetting', {
+    id:                { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    device_ip:         { type: DataTypes.STRING(100), allowNull: false, defaultValue: '' },
+    port:              { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false, defaultValue: 80 },
+    username:          { type: DataTypes.STRING(100), allowNull: false, defaultValue: 'admin' },
+    password:          { type: DataTypes.STRING(191), allowNull: false, defaultValue: '' },
+    poll_interval_min: { type: DataTypes.TINYINT.UNSIGNED, allowNull: false, defaultValue: 5 },
+    enabled:           { type: DataTypes.BOOLEAN, defaultValue: false },
+    last_synced_at:    { type: DataTypes.DATE, allowNull: true },
+  }, { tableName: 'attendance_settings' });
+
+  const AttendanceRecord = sequelize.define('AttendanceRecord', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    employee_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    punch_time:  { type: DataTypes.DATE, allowNull: false },
+    direction:   { type: DataTypes.ENUM('in', 'out', 'unknown'), defaultValue: 'unknown' },
+    event_id:    { type: DataTypes.STRING(64), allowNull: true, unique: true },
+    source:      { type: DataTypes.ENUM('device', 'manual'), defaultValue: 'device' },
+  }, { tableName: 'attendance_records' });
+
+  AttendanceRecord.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee' });
+  Employee.hasMany(AttendanceRecord, { foreignKey: 'employee_id', as: 'attendanceRecords' });
+
+  const CashAdvance = sequelize.define('CashAdvance', {
+    id:                { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    employee_id:       { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    amount:            { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    note:              { type: DataTypes.STRING(255), allowNull: true },
+    given_date:        { type: DataTypes.DATEONLY, allowNull: false },
+    deducted:          { type: DataTypes.BOOLEAN, defaultValue: false },
+    salary_payment_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    given_by:          { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+  }, { tableName: 'cash_advances' });
+
+  CashAdvance.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee' });
+  Employee.hasMany(CashAdvance,   { foreignKey: 'employee_id', as: 'cashAdvances' });
+  CashAdvance.belongsTo(User,     { foreignKey: 'given_by', as: 'givenBy' });
+  CashAdvance.belongsTo(SalaryPayment, { foreignKey: 'salary_payment_id', as: 'salaryPayment' });
+
+  const LoadingSheet = sequelize.define('LoadingSheet', {
+    id:           { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    sheet_no:     { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    date:         { type: DataTypes.DATEONLY, allowNull: false },
+    note:         { type: DataTypes.TEXT, allowNull: true },
+    status:       { type: DataTypes.ENUM('open', 'delivered'), defaultValue: 'open' },
+    delivered_at: { type: DataTypes.DATE, allowNull: true },
+    created_by:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+  }, { tableName: 'loading_sheets', underscored: true });
+
+  const LoadingSheetItem = sequelize.define('LoadingSheetItem', {
+    id:       { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    sheet_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    sale_id:  { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'loading_sheet_items', underscored: true, updatedAt: false });
+
+  const VanTrip = sequelize.define('VanTrip', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    driver_name: { type: DataTypes.STRING(191), allowNull: false, defaultValue: '' },
+    vehicle_no:  { type: DataTypes.STRING(100), allowNull: false, defaultValue: '' },
+    start_date:  { type: DataTypes.DATEONLY, allowNull: false },
+    end_date:    { type: DataTypes.DATEONLY, allowNull: true },
+    status:      { type: DataTypes.ENUM('active', 'closed'), defaultValue: 'active' },
+    notes:       { type: DataTypes.TEXT, allowNull: true },
+  }, { tableName: 'van_trips' });
+
+  const VanLoad = sequelize.define('VanLoad', {
+    id:      { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    trip_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    date:    { type: DataTypes.DATEONLY, allowNull: false },
+    type:    { type: DataTypes.ENUM('initial', 'refill'), defaultValue: 'initial' },
+    notes:   { type: DataTypes.TEXT, allowNull: true },
+  }, { tableName: 'van_loads' });
+
+  const VanLoadItem = sequelize.define('VanLoadItem', {
+    id:           { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    load_id:      { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    variant_name: { type: DataTypes.STRING(191), allowNull: false },
+    quantity:     { type: DataTypes.INTEGER.UNSIGNED, defaultValue: 0 },
+    unit_price:   { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    unit_cost:    { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  }, { tableName: 'van_load_items', timestamps: false });
+
+  const VanDailyRecord = sequelize.define('VanDailyRecord', {
+    id:            { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    trip_id:       { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    date:          { type: DataTypes.DATEONLY, allowNull: false },
+    advance_given: { type: DataTypes.DECIMAL(10, 2), defaultValue: 5000 },
+    cash_handover: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    notes:         { type: DataTypes.TEXT, allowNull: true },
+  }, { tableName: 'van_daily_records' });
+
+  const VanUnloadItem = sequelize.define('VanUnloadItem', {
+    id:           { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    trip_id:      { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    date:         { type: DataTypes.DATEONLY, allowNull: false },
+    variant_name: { type: DataTypes.STRING(191), allowNull: false },
+    qty_returned: { type: DataTypes.INTEGER.UNSIGNED, defaultValue: 0 },
+    qty_damaged:  { type: DataTypes.INTEGER.UNSIGNED, defaultValue: 0 },
+  }, { tableName: 'van_unload_items', timestamps: false });
+
+  VanTrip.hasMany(VanLoad,        { foreignKey: 'trip_id', as: 'loads' });
+  VanLoad.belongsTo(VanTrip,      { foreignKey: 'trip_id', as: 'trip' });
+  VanLoad.hasMany(VanLoadItem,    { foreignKey: 'load_id', as: 'items' });
+  VanLoadItem.belongsTo(VanLoad,  { foreignKey: 'load_id', as: 'load' });
+  VanTrip.hasMany(VanDailyRecord, { foreignKey: 'trip_id', as: 'dailyRecords' });
+  VanDailyRecord.belongsTo(VanTrip, { foreignKey: 'trip_id', as: 'trip' });
+  VanTrip.hasMany(VanUnloadItem,  { foreignKey: 'trip_id', as: 'unloadItems' });
+  VanUnloadItem.belongsTo(VanTrip, { foreignKey: 'trip_id', as: 'trip' });
+
+  const SmsConfig = sequelize.define('SmsConfig', {
+    id:               { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    user_id:          { type: DataTypes.STRING(191), defaultValue: '' },
+    api_key:          { type: DataTypes.STRING(191), defaultValue: '' },
+    sender_id:        { type: DataTypes.STRING(50),  defaultValue: '' },
+    receipt_template: { type: DataTypes.TEXT, allowNull: false },
+  }, { tableName: 'sms_config', updatedAt: 'updated_at', createdAt: false });
+
+  const SmsLog = sequelize.define('SmsLog', {
+    id:      { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    sale_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    phone:   { type: DataTypes.STRING(50), allowNull: false },
+    message: { type: DataTypes.TEXT, allowNull: false },
+    status:  { type: DataTypes.ENUM('sent', 'failed'), allowNull: false },
+    error:   { type: DataTypes.TEXT, allowNull: true },
+    sent_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  }, { tableName: 'sms_logs', createdAt: false, updatedAt: false });
+
+  const CoopStore = sequelize.define('CoopStore', {
+    id:     { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:   { type: DataTypes.STRING(191), allowNull: false },
+    active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, { tableName: 'coop_stores', underscored: true });
+
+  const CoopStockTransfer = sequelize.define('CoopStockTransfer', {
+    id:             { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    transfer_no:    { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    date:           { type: DataTypes.DATEONLY, allowNull: false },
+    from_store_id:  { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    to_store_id:    { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    total_cost:     { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    total_selling:  { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    remarks:        { type: DataTypes.TEXT, allowNull: true },
+    prepared_by:    { type: DataTypes.STRING(191), allowNull: true },
+    checked_by:     { type: DataTypes.STRING(191), allowNull: true },
+    issued_by:      { type: DataTypes.STRING(191), allowNull: true },
+    received_by:    { type: DataTypes.STRING(191), allowNull: true },
+    created_by:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+  }, { tableName: 'coop_stock_transfers', underscored: true });
+
+  const CoopStockTransferItem = sequelize.define('CoopStockTransferItem', {
+    id:            { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    transfer_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    product_id:    { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    product_name:  { type: DataTypes.STRING(191), allowNull: false },
+    qty:           { type: DataTypes.DECIMAL(10, 3), allowNull: false },
+    cost_price:    { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    selling_price: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    cost_total:    { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    selling_total: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+  }, { tableName: 'coop_stock_transfer_items', underscored: true, updatedAt: false });
+
+  CoopStockTransfer.hasMany(CoopStockTransferItem, { foreignKey: 'transfer_id', as: 'items' });
+  CoopStockTransferItem.belongsTo(CoopStockTransfer, { foreignKey: 'transfer_id', as: 'transfer' });
+  CoopStockTransfer.belongsTo(CoopStore, { foreignKey: 'from_store_id', as: 'fromStore' });
+  CoopStockTransfer.belongsTo(CoopStore, { foreignKey: 'to_store_id', as: 'toStore' });
+  CoopStockTransfer.belongsTo(User, { foreignKey: 'created_by', as: 'createdBy' });
+
+  // ── Associations ────────────────────────────────────────────────────────────
+  User.belongsToMany(Role, { through: 'user_role', foreignKey: 'user_id', otherKey: 'role_id', timestamps: false });
+  Role.belongsToMany(User, { through: 'user_role', foreignKey: 'role_id', otherKey: 'user_id', timestamps: false });
+
+  Product.belongsTo(Category, { foreignKey: 'category_id', as: 'category' });
+  Product.hasMany(ProductVariant, { foreignKey: 'product_id', as: 'variants' });
+  ProductVariant.belongsTo(Product, { foreignKey: 'product_id', as: 'product' });
+  Product.hasMany(ProductBatch, { foreignKey: 'product_id', as: 'batches' });
+  ProductBatch.belongsTo(Product, { foreignKey: 'product_id', as: 'product' });
+
+  Product.hasMany(ProductDiscountTier, { foreignKey: 'product_id', as: 'discountTiers' });
+  ProductDiscountTier.belongsTo(Product, { foreignKey: 'product_id', as: 'product' });
+
+  Sale.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+  Sale.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+  Sale.hasMany(SaleItem, { foreignKey: 'sale_id', as: 'items' });
+  Sale.hasMany(Payment, { foreignKey: 'sale_id', as: 'payments' });
+  SaleItem.belongsTo(Product, { foreignKey: 'product_id', as: 'product' });
+
+  Purchase.belongsTo(Supplier, { foreignKey: 'supplier_id', as: 'supplier' });
+  Purchase.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+  Purchase.hasMany(PurchaseItem, { foreignKey: 'purchase_id', as: 'items' });
+  PurchaseItem.belongsTo(Product, { foreignKey: 'product_id', as: 'product' });
+  Purchase.hasMany(PurchaseReturn, { foreignKey: 'purchase_id', as: 'returns' });
+
+  SupplierReturn.hasMany(SupplierReturnItem, { foreignKey: 'supplier_return_id', as: 'items' });
+  SupplierReturnItem.belongsTo(SupplierReturn, { foreignKey: 'supplier_return_id', as: 'supplierReturn' });
+  SupplierReturn.belongsTo(Supplier,  { foreignKey: 'supplier_id', as: 'supplier' });
+  SupplierReturn.belongsTo(User,      { foreignKey: 'user_id',     as: 'user' });
+  SupplierReturn.belongsTo(Purchase,  { foreignKey: 'purchase_id', as: 'purchase' });
+  Purchase.hasMany(SupplierReturn,    { foreignKey: 'purchase_id', as: 'supplierReturns' });
+  SupplierReturnItem.belongsTo(Product, { foreignKey: 'product_id', as: 'product' });
+
+  Supplier.hasMany(SupplierPayment, { foreignKey: 'supplier_id', as: 'payments' });
+  SupplierPayment.belongsTo(Supplier, { foreignKey: 'supplier_id', as: 'supplier' });
+  SupplierPayment.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+  Customer.hasMany(CreditPayment, { foreignKey: 'customer_id', as: 'creditPayments' });
+  Customer.hasMany(Sale, { foreignKey: 'customer_id', as: 'sales' });
+  CreditPayment.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+  Account.hasMany(JournalLine, { foreignKey: 'account_id', as: 'lines' });
+  JournalLine.belongsTo(Account, { foreignKey: 'account_id', as: 'account' });
+
+  JournalEntry.hasMany(JournalLine, { foreignKey: 'entry_id', as: 'lines' });
+  JournalLine.belongsTo(JournalEntry, { foreignKey: 'entry_id', as: 'entry' });
+
+  JournalEntry.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+  Account.belongsTo(Account, { foreignKey: 'parent_id', as: 'parent' });
+  Account.hasMany(Account, { foreignKey: 'parent_id', as: 'children' });
+
+  Role.belongsToMany(Feature, { through: 'role_features', foreignKey: 'role_id', otherKey: 'feature_id', timestamps: false });
+  Feature.belongsToMany(Role, { through: 'role_features', foreignKey: 'feature_id', otherKey: 'role_id', timestamps: false });
+
+  // Per-user feature overrides (takes precedence over role features when set)
+  User.belongsToMany(Feature, { through: 'user_features', foreignKey: 'user_id', otherKey: 'feature_id', as: 'DirectFeatures', timestamps: false });
+  Feature.belongsToMany(User, { through: 'user_features', foreignKey: 'feature_id', otherKey: 'user_id', as: 'DirectUsers', timestamps: false });
+
+  Employee.hasMany(SalaryPayment, { foreignKey: 'employee_id', as: 'salaryPayments' });
+  SalaryPayment.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee' });
+  SalaryPayment.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+  LoadingSheet.hasMany(LoadingSheetItem, { foreignKey: 'sheet_id', as: 'items' });
+  LoadingSheetItem.belongsTo(LoadingSheet, { foreignKey: 'sheet_id', as: 'sheet' });
+  LoadingSheetItem.belongsTo(Sale, { foreignKey: 'sale_id', as: 'sale' });
+  Sale.hasMany(LoadingSheetItem, { foreignKey: 'sale_id', as: 'loadingItems' });
+  LoadingSheet.belongsTo(User, { foreignKey: 'created_by', as: 'createdBy' });
+
+  // ── Rice Mill Models ─────────────────────────────────────────
+
+  const CashAccount = sequelize.define('CashAccount', {
+    id:              { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:            { type: DataTypes.STRING(191), allowNull: false },
+    type:            { type: DataTypes.ENUM('cash','bank'), defaultValue: 'cash' },
+    bank_name:       { type: DataTypes.STRING(100), allowNull: true },
+    account_no:      { type: DataTypes.STRING(100), allowNull: true },
+    opening_balance: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    current_balance: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    active:          { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, { tableName: 'cash_accounts' });
+
+  const PaddyVariety = sequelize.define('PaddyVariety', {
+    id:          { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:        { type: DataTypes.STRING(191), allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    active:      { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, { tableName: 'paddy_varieties' });
+
+  const RiceGrade = sequelize.define('RiceGrade', {
+    id:            { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:          { type: DataTypes.STRING(191), allowNull: false },
+    type:          { type: DataTypes.ENUM('rice','bran','husk','broken'), defaultValue: 'rice' },
+    unit:          { type: DataTypes.STRING(20), defaultValue: 'kg' },
+    current_stock: { type: DataTypes.DECIMAL(12,3), defaultValue: 0 },
+    opening_stock: { type: DataTypes.DECIMAL(12,3), defaultValue: 0 },
+    active:        { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, { tableName: 'rice_grades' });
+
+  const PaddyPurchase = sequelize.define('PaddyPurchase', {
+    id:             { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    lot_no:         { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    supplier_id:    { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    variety_id:     { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    purchase_date:  { type: DataTypes.DATEONLY, allowNull: false },
+    quantity_kg:    { type: DataTypes.DECIMAL(12,3), allowNull: false },
+    remaining_kg:   { type: DataTypes.DECIMAL(12,3), allowNull: false },
+    price_per_kg:   { type: DataTypes.DECIMAL(10,4), allowNull: false },
+    moisture_pct:   { type: DataTypes.DECIMAL(5,2), defaultValue: 0 },
+    total_amount:   { type: DataTypes.DECIMAL(12,2), allowNull: false },
+    paid_amount:    { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    balance:        { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    payment_status: { type: DataTypes.ENUM('unpaid','partial','paid'), defaultValue: 'unpaid' },
+    note:           { type: DataTypes.TEXT, allowNull: true },
+    user_id:        { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'paddy_purchases' });
+
+  const PaddyPurchasePayment = sequelize.define('PaddyPurchasePayment', {
+    id:                { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    paddy_purchase_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    amount:            { type: DataTypes.DECIMAL(12,2), allowNull: false },
+    payment_method:    { type: DataTypes.ENUM('cash','bank_transfer'), defaultValue: 'cash' },
+    cash_account_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    bank_reference:    { type: DataTypes.STRING(100), allowNull: true },
+    payment_date:      { type: DataTypes.DATEONLY, allowNull: false },
+    note:              { type: DataTypes.STRING(255), allowNull: true },
+    user_id:           { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'paddy_purchase_payments' });
+
+  const MillBatch = sequelize.define('MillBatch', {
+    id:           { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    batch_no:     { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    mill_date:    { type: DataTypes.DATEONLY, allowNull: false },
+    paddy_qty_in: { type: DataTypes.DECIMAL(12,3), allowNull: false },
+    milling_cost: { type: DataTypes.DECIMAL(10,2), defaultValue: 0 },
+    status:       { type: DataTypes.ENUM('open','completed'), defaultValue: 'completed' },
+    note:         { type: DataTypes.TEXT, allowNull: true },
+    user_id:      { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'mill_batches' });
+
+  const MillBatchInput = sequelize.define('MillBatchInput', {
+    id:                { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    batch_id:          { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    paddy_purchase_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    quantity_kg:       { type: DataTypes.DECIMAL(12,3), allowNull: false },
+  }, { tableName: 'mill_batch_inputs', timestamps: false });
+
+  const MillBatchOutput = sequelize.define('MillBatchOutput', {
+    id:            { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    batch_id:      { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    rice_grade_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    quantity_kg:   { type: DataTypes.DECIMAL(12,3), allowNull: false },
+    yield_pct:     { type: DataTypes.DECIMAL(5,2), defaultValue: 0 },
+  }, { tableName: 'mill_batch_outputs', timestamps: false });
+
+  const WholesaleSale = sequelize.define('WholesaleSale', {
+    id:             { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    invoice_no:     { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    customer_id:    { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    sale_date:      { type: DataTypes.DATEONLY, allowNull: false },
+    subtotal:       { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    discount:       { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    total:          { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    paid:           { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    balance:        { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    payment_status: { type: DataTypes.ENUM('unpaid','partial','paid'), defaultValue: 'unpaid' },
+    note:           { type: DataTypes.TEXT, allowNull: true },
+    user_id:        { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'wholesale_sales' });
+
+  const WholesaleSaleItem = sequelize.define('WholesaleSaleItem', {
+    id:            { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    sale_id:       { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    rice_grade_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    grade_name:    { type: DataTypes.STRING(191), allowNull: false },
+    quantity_kg:   { type: DataTypes.DECIMAL(12,3), allowNull: false },
+    price_per_kg:  { type: DataTypes.DECIMAL(10,4), allowNull: false },
+    total:         { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  }, { tableName: 'wholesale_sale_items', timestamps: false });
+
+  const WholesaleSalePayment = sequelize.define('WholesaleSalePayment', {
+    id:              { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    sale_id:         { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    amount:          { type: DataTypes.DECIMAL(12,2), allowNull: false },
+    payment_method:  { type: DataTypes.ENUM('cash','bank_transfer'), defaultValue: 'cash' },
+    cash_account_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    bank_reference:  { type: DataTypes.STRING(100), allowNull: true },
+    payment_date:    { type: DataTypes.DATEONLY, allowNull: false },
+    note:            { type: DataTypes.STRING(255), allowNull: true },
+    user_id:         { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'wholesale_sale_payments' });
+
+  const LabourWorker = sequelize.define('LabourWorker', {
+    id:              { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name:            { type: DataTypes.STRING(191), allowNull: false },
+    phone:           { type: DataTypes.STRING(50), allowNull: true },
+    address:         { type: DataTypes.TEXT, allowNull: true },
+    daily_rate:      { type: DataTypes.DECIMAL(10,2), defaultValue: 0 },
+    opening_advance: { type: DataTypes.DECIMAL(10,2), defaultValue: 0 },
+    advance_balance: { type: DataTypes.DECIMAL(10,2), defaultValue: 0 },
+    active:          { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, { tableName: 'labour_workers' });
+
+  const LabourAttendance = sequelize.define('LabourAttendance', {
+    id:        { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    worker_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    work_date: { type: DataTypes.DATEONLY, allowNull: false },
+    status:    { type: DataTypes.ENUM('full','half','absent'), defaultValue: 'full' },
+    note:      { type: DataTypes.STRING(255), allowNull: true },
+    user_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'labour_attendance' });
+
+  const WorkerAdvance = sequelize.define('WorkerAdvance', {
+    id:                 { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    worker_id:          { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    given_date:         { type: DataTypes.DATEONLY, allowNull: false },
+    amount:             { type: DataTypes.DECIMAL(10,2), allowNull: false },
+    note:               { type: DataTypes.STRING(255), allowNull: true },
+    deducted:           { type: DataTypes.BOOLEAN, defaultValue: false },
+    wage_settlement_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    given_by:           { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+  }, { tableName: 'worker_advances' });
+
+  const WageSettlement = sequelize.define('WageSettlement', {
+    id:              { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    ref_no:          { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    worker_id:       { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    period_from:     { type: DataTypes.DATEONLY, allowNull: false },
+    period_to:       { type: DataTypes.DATEONLY, allowNull: false },
+    full_days:       { type: DataTypes.INTEGER, defaultValue: 0 },
+    half_days:       { type: DataTypes.INTEGER, defaultValue: 0 },
+    total_days:      { type: DataTypes.DECIMAL(5,1), defaultValue: 0 },
+    daily_rate:      { type: DataTypes.DECIMAL(10,2), allowNull: false },
+    gross_wage:      { type: DataTypes.DECIMAL(10,2), allowNull: false },
+    total_advances:  { type: DataTypes.DECIMAL(10,2), defaultValue: 0 },
+    net_payable:     { type: DataTypes.DECIMAL(10,2), allowNull: false },
+    payment_method:  { type: DataTypes.ENUM('cash','bank_transfer'), defaultValue: 'cash' },
+    cash_account_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
+    bank_reference:  { type: DataTypes.STRING(100), allowNull: true },
+    note:            { type: DataTypes.STRING(255), allowNull: true },
+    user_id:         { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'wage_settlements' });
+
+  const OpeningBalance = sequelize.define('OpeningBalance', {
+    id:             { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: true },
+    type:           { type: DataTypes.ENUM('supplier_payable','customer_receivable','cash_account','rice_stock','worker_advance'), allowNull: false },
+    reference_id:   { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+    reference_name: { type: DataTypes.STRING(191), allowNull: true },
+    amount:         { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    quantity_kg:    { type: DataTypes.DECIMAL(12,3), defaultValue: 0 },
+    posted:         { type: DataTypes.BOOLEAN, defaultValue: false },
+    note:           { type: DataTypes.STRING(255), allowNull: true },
+    user_id:        { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  }, { tableName: 'opening_balances' });
+
+  // Rice Mill associations
+  PaddyPurchase.belongsTo(Supplier,      { foreignKey: 'supplier_id', as: 'supplier' });
+  PaddyPurchase.belongsTo(PaddyVariety,  { foreignKey: 'variety_id',  as: 'variety' });
+  PaddyPurchase.belongsTo(User,          { foreignKey: 'user_id',     as: 'user' });
+  PaddyPurchase.hasMany(PaddyPurchasePayment, { foreignKey: 'paddy_purchase_id', as: 'payments' });
+  PaddyPurchasePayment.belongsTo(PaddyPurchase, { foreignKey: 'paddy_purchase_id', as: 'purchase' });
+  PaddyPurchasePayment.belongsTo(CashAccount,   { foreignKey: 'cash_account_id',   as: 'cashAccount' });
+
+  MillBatch.hasMany(MillBatchInput,  { foreignKey: 'batch_id', as: 'inputs' });
+  MillBatch.hasMany(MillBatchOutput, { foreignKey: 'batch_id', as: 'outputs' });
+  MillBatchInput.belongsTo(MillBatch,        { foreignKey: 'batch_id',          as: 'batch' });
+  MillBatchInput.belongsTo(PaddyPurchase,    { foreignKey: 'paddy_purchase_id', as: 'paddyLot' });
+  MillBatchOutput.belongsTo(MillBatch,       { foreignKey: 'batch_id',          as: 'batch' });
+  MillBatchOutput.belongsTo(RiceGrade,       { foreignKey: 'rice_grade_id',     as: 'riceGrade' });
+
+  WholesaleSale.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+  WholesaleSale.belongsTo(User,     { foreignKey: 'user_id',     as: 'user' });
+  WholesaleSale.hasMany(WholesaleSaleItem,    { foreignKey: 'sale_id', as: 'items' });
+  WholesaleSale.hasMany(WholesaleSalePayment, { foreignKey: 'sale_id', as: 'payments' });
+  WholesaleSaleItem.belongsTo(WholesaleSale, { foreignKey: 'sale_id',       as: 'sale' });
+  WholesaleSaleItem.belongsTo(RiceGrade,     { foreignKey: 'rice_grade_id', as: 'riceGrade' });
+  WholesaleSalePayment.belongsTo(WholesaleSale, { foreignKey: 'sale_id',         as: 'sale' });
+  WholesaleSalePayment.belongsTo(CashAccount,   { foreignKey: 'cash_account_id', as: 'cashAccount' });
+
+  LabourWorker.hasMany(LabourAttendance, { foreignKey: 'worker_id', as: 'attendance' });
+  LabourWorker.hasMany(WorkerAdvance,    { foreignKey: 'worker_id', as: 'advances' });
+  LabourWorker.hasMany(WageSettlement,   { foreignKey: 'worker_id', as: 'wageSettlements' });
+  LabourAttendance.belongsTo(LabourWorker, { foreignKey: 'worker_id', as: 'worker' });
+  WorkerAdvance.belongsTo(LabourWorker,    { foreignKey: 'worker_id', as: 'worker' });
+  WorkerAdvance.belongsTo(User,            { foreignKey: 'given_by',  as: 'givenBy' });
+  WageSettlement.belongsTo(LabourWorker,   { foreignKey: 'worker_id',       as: 'worker' });
+  WageSettlement.belongsTo(CashAccount,    { foreignKey: 'cash_account_id', as: 'cashAccount' });
+  WageSettlement.hasMany(WorkerAdvance,    { foreignKey: 'wage_settlement_id', as: 'deductedAdvances' });
+
+  return {
+    User, Role, Category, Product, ProductVariant, ProductBatch, ProductDiscountTier,
+    Supplier, Customer, Sale, SaleItem, Payment, SaleReturn,
+    Purchase, PurchaseItem, PurchaseReturn, StockMovement, CreditPayment, SupplierPayment, Setting, Feature,
+    Account, JournalEntry, JournalLine,
+    Employee, SalaryPayment, CashAdvance,
+    AttendanceSetting, AttendanceRecord,
+    LoadingSheet, LoadingSheetItem,
+    CoopStore, CoopStockTransfer, CoopStockTransferItem,
+    SmsConfig, SmsLog,
+    VanTrip, VanLoad, VanLoadItem, VanDailyRecord, VanUnloadItem,
+    SupplierReturn, SupplierReturnItem,
+    // Rice Mill
+    CashAccount, PaddyVariety, RiceGrade,
+    PaddyPurchase, PaddyPurchasePayment,
+    MillBatch, MillBatchInput, MillBatchOutput,
+    WholesaleSale, WholesaleSaleItem, WholesaleSalePayment,
+    LabourWorker, LabourAttendance, WorkerAdvance, WageSettlement,
+    OpeningBalance,
+  };
+}
+
+module.exports = getModels;
